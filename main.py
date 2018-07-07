@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 
+from tensorboardX import SummaryWriter
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
-from tensorboardX import SummaryWriter
-
 import argparse, os, sys, subprocess
 import setproctitle, colorama
 import numpy as np
@@ -149,7 +148,7 @@ if __name__ == '__main__':
             block.log('Inference Input: {}'.format(' '.join([str([d for d in x.size()]) for x in inference_dataset[0][0]])))
             block.log('Inference Targets: {}'.format(' '.join([str([d for d in x.size()]) for x in inference_dataset[0][1]])))
             inference_loader = DataLoader(inference_dataset, batch_size=args.inference_batch_size, shuffle=False, **gpuargs)
-
+            
     # Dynamically load model and loss class with parameters passed in via "--model_[param]=[value]" or "--loss_[param]=[value]" arguments
     with tools.TimerBlock("Building {} model".format(args.model)) as block:
         class ModelAndLoss(nn.Module):
@@ -219,7 +218,7 @@ if __name__ == '__main__':
 
         train_logger = SummaryWriter(log_dir = os.path.join(args.save, 'train'), comment = 'training')
         validation_logger = SummaryWriter(log_dir = os.path.join(args.save, 'validation'), comment = 'validation')
-
+    
     # Dynamically load the optimizer with parameters passed in via "--optimizer_[param]=[value]" arguments 
     with tools.TimerBlock("Initializing {} Optimizer".format(args.optimizer)) as block:
         kwargs = tools.kwargs_from_args(args, 'optimizer')
@@ -390,7 +389,6 @@ if __name__ == '__main__':
     offset = 1
     last_epoch_time = progress._time()
     global_iteration = 0
-
     for epoch in progress:
         if args.inference or (args.render_validation and ((epoch - 1) % args.validation_frequency) == 0):
             stats = inference(args=args, epoch=epoch - 1, data_loader=inference_loader, model=model_and_loss, offset=offset)

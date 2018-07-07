@@ -37,9 +37,9 @@ class MpiSintel(data.Dataset):
 
         flow_root = join(root, 'flow')
         image_root = join(root, dstype)
-
+        print(flow_root,image_root)
         file_list = sorted(glob(join(flow_root, '*/*.flo')))
-
+        
         self.flow_list = []
         self.image_list = []
 
@@ -62,7 +62,8 @@ class MpiSintel(data.Dataset):
             self.flow_list += [file]
 
         self.size = len(self.image_list)
-
+        print(file_list)
+        print(self.image_list)
         self.frame_size = frame_utils.read_gen(self.image_list[0][0]).shape
 
         if (self.render_size[0] < 0) or (self.render_size[1] < 0) or (self.frame_size[0]%64) or (self.frame_size[1]%64):
