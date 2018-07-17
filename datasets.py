@@ -1,5 +1,7 @@
+
 import torch
 import torch.utils.data as data
+import torch.nn as nn
 
 import os, math, random
 from os.path import *
@@ -9,6 +11,18 @@ from glob import glob
 import utils.frame_utils as frame_utils
 
 from scipy.misc import imread, imresize
+
+class Padding(object):
+    def __init__(self):
+        self.wpad = nn.ReplicationPad2d((0, -1, 0, 0))
+        self.hpad = nn.ReplicationPad2d((0, 0, 0, -1))
+    def __call__(self,  input, targetsize):
+        if input.size()[2] != targetsize[2]:
+            input = self.hpad(input)
+        if input.size()[3] != targetsize[3]:
+            input = self.wpad(input)
+        return input
+        
 
 class StaticRandomCrop(object):
     def __init__(self, image_size, crop_size):
@@ -62,8 +76,6 @@ class MpiSintel(data.Dataset):
             self.flow_list += [file]
 
         self.size = len(self.image_list)
-        print(file_list)
-        print(self.image_list)
         self.frame_size = frame_utils.read_gen(self.image_list[0][0]).shape
 
         if (self.render_size[0] < 0) or (self.render_size[1] < 0) or (self.frame_size[0]%64) or (self.frame_size[1]%64):

@@ -5,6 +5,8 @@ from torch.nn import init
 import math
 import numpy as np
 
+from datasets import Padding
+
 from networks.resample2d_package.modules.resample2d import Resample2d
 from networks.channelnorm_package.modules.channelnorm import ChannelNorm
 
@@ -19,6 +21,7 @@ from networks.submodules import *
 class FlowNet2(nn.Module):
 
     def __init__(self, args, batchNorm=False, div_flow = 20.):
+        
         super(FlowNet2,self).__init__()
         self.batchNorm = batchNorm
         self.div_flow = div_flow
@@ -26,7 +29,8 @@ class FlowNet2(nn.Module):
         self.args = args
 
         self.channelnorm = ChannelNorm()
-
+        self.pad = Padding()
+        
         # First Block (FlowNetC)
         self.flownetc = FlowNetC.FlowNetC(args, batchNorm=self.batchNorm)
         self.upsample1 = nn.Upsample(scale_factor=4, mode='bilinear')
@@ -126,7 +130,12 @@ class FlowNet2(nn.Module):
         resampled_img1 = self.resample1(x[:,3:,:,:], flownetc_flow)
         diff_img0 = x[:,:3,:,:] - resampled_img1  # brightness error
         norm_diff_img0 = self.channelnorm(diff_img0)
-
+        
+        #padding before concat
+        resampled_img1 = self.pad(resampled_img1, x.size())
+        flownetc_flow = self.pad(flownetc_flow, x.size())
+        norm_diff_img0 = self.pad(norm_diff_img0, x.size())
+        
         # concat img0, img1, warped img1, flow, normalized brightness error
         concat1 = torch.cat((x, resampled_img1, flownetc_flow/self.div_flow, norm_diff_img0), dim=1)
         
@@ -139,6 +148,9 @@ class FlowNet2(nn.Module):
         diff_img0 = x[:,:3,:,:] - resampled_img1
         norm_diff_img0 = self.channelnorm(diff_img0)
 
+        #padding before concat
+        flownets1_flow = self.pad(flownets1_flow, x.size())
+        
         # concat img0, img1, img1->img0, flow, diff-mag
         concat2 = torch.cat((x, resampled_img1, flownets1_flow/self.div_flow, norm_diff_img0), dim=1)
 
@@ -167,7 +179,15 @@ class FlowNet2(nn.Module):
         diff_flownetsd_img1 = self.channelnorm((x[:,:3,:,:]-diff_flownetsd_flow))
         if not diff_flownetsd_img1.volatile:
             diff_flownetsd_img1.register_hook(save_grad(self.args.grads, 'diff_flownetsd_img1'))
-
+        
+        #padding before concat
+        flownetsd_flow = self.pad(flownetsd_flow, x[:,:3,:,:].size())
+        flownets2_flow = self.pad(flownets2_flow, x[:,:3,:,:].size())
+        norm_flownetsd_flow = self.pad(norm_flownetsd_flow, x[:,:3,:,:].size())
+        norm_flownets2_flow = self.pad(norm_flownets2_flow, x[:,:3,:,:].size())
+        diff_flownetsd_img1 = self.pad( diff_flownetsd_img1, x[:,:3,:,:].size())
+        diff_flownets2_img1 = self.pad( diff_flownets2_img1, x[:,:3,:,:].size())
+        
         # concat img1 flownetsd, flownets2, norm_flownetsd, norm_flownets2, diff_flownetsd_img1, diff_flownets2_img1
         concat3 = torch.cat((x[:,:3,:,:], flownetsd_flow, flownets2_flow, norm_flownetsd_flow, norm_flownets2_flow, diff_flownetsd_img1, diff_flownets2_img1), dim=1)
         flownetfusion_flow = self.flownetfusion(concat3)
@@ -181,7 +201,7 @@ class FlowNet2C(FlowNetC.FlowNetC):
     def __init__(self, args, batchNorm=False, div_flow=20):
         super(FlowNet2C,self).__init__(args, batchNorm=batchNorm, div_flow=20)
         self.rgb_max = args.rgb_max
-
+        
     def forward(self, inputs):
         rgb_mean = inputs.contiguous().view(inputs.size()[:2]+(-1,)).mean(dim=-1).view(inputs.size()[:2] + (1,1,1,))
         
@@ -250,6 +270,7 @@ class FlowNet2S(FlowNetS.FlowNetS):
         super(FlowNet2S,self).__init__(args, input_channels = 6, batchNorm=batchNorm)
         self.rgb_max = args.rgb_max
         self.div_flow = div_flow
+        self.pad = padding()
         
     def forward(self, inputs):
         rgb_mean = inputs.contiguous().view(inputs.size()[:2]+(-1,)).mean(dim=-1).view(inputs.size()[:2] + (1,1,1,))
